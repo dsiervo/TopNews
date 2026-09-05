@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Noam y Kipi: La misión Shemá</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#bfe7ff;font-family:ui-rounded,"Comic Sans MS","Trebuchet MS",system-ui,sans-serif;color:#151515}
+#app{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none}
+#topbar{position:absolute;left:14px;right:14px;top:calc(10px + env(safe-area-inset-top));display:flex;justify-content:space-between;align-items:center;gap:10px}
+.badge{background:#ffe45c;border:3px solid #111;border-radius:999px;padding:7px 12px;font-weight:1000;box-shadow:3px 3px 0 #111;font-size:14px}
+#sceneTitle{background:#fff;border:3px solid #111;border-radius:12px;padding:7px 12px;font-weight:1000;box-shadow:3px 3px 0 #111;text-align:center;min-width:145px}
+#progress{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));display:flex;gap:8px;pointer-events:auto}
+.dot{width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid #111;cursor:pointer}.dot.active{background:#ff6f91;transform:scale(1.25)}
+#controls{position:absolute;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;gap:12px;pointer-events:auto}
+button{appearance:none;border:3px solid #111;border-radius:14px;background:#fff;padding:12px 16px;font:inherit;font-weight:1000;box-shadow:4px 4px 0 #111;cursor:pointer;min-width:110px}button:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #111}button:disabled{opacity:.35}
+#hint{position:absolute;left:50%;transform:translateX(-50%);top:calc(58px + env(safe-area-inset-top));background:rgba(255,255,255,.92);border:2px dashed #111;border-radius:12px;padding:6px 10px;font-size:12px;font-weight:800;white-space:nowrap}
+.bubble{position:absolute;max-width:min(280px,72vw);background:#fff;border:3px solid #111;border-radius:20px;padding:10px 13px;font-weight:900;line-height:1.12;box-shadow:4px 4px 0 rgba(17,17,17,.92);transform:translate(-50%,-100%);transition:opacity .18s ease, transform .18s ease;pointer-events:none}
+.bubble:after{content:"";position:absolute;left:50%;bottom:-17px;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:18px solid #111}.bubble:before{content:"";position:absolute;z-index:2;left:50%;bottom:-11px;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:14px solid #fff}
+.bubble.kipi{background:#ffd6e2}.bubble.kipi:before{border-top-color:#ffd6e2}.bubble.moshe{background:#daf7c9}.bubble.moshe:before{border-top-color:#daf7c9}.bubble.narrator{background:#fff5b8}.bubble.narrator:after,.bubble.narrator:before{display:none}.bubble.narrator{transform:translate(-50%,0);top:105px!important;left:50%!important;max-width:min(520px,86vw);text-align:center}
+#tap{position:absolute;right:16px;bottom:calc(95px + env(safe-area-inset-bottom));background:#111;color:#fff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;opacity:.78}
+#loading{position:fixed;inset:0;display:grid;place-items:center;background:#fff7d6;z-index:20;font-weight:1000;font-size:20px}.small{font-size:12px;font-weight:700;opacity:.7;display:block;margin-top:4px;text-align:center}
+@media (max-width:560px){#sceneTitle{font-size:13px;min-width:120px}.badge{font-size:12px;padding:6px 9px}button{min-width:98px;padding:11px 12px}.bubble{font-size:14px;max-width:72vw}#hint{top:64px;font-size:11px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading">Preparando el desierto… 🐐</div>
+<div id="hud">
+  <div id="topbar"><div class="badge">Vaetchanan · aventura 3D</div><div id="sceneTitle">Escena 1</div><div class="badge" id="counter">1 / 8</div></div>
+  <div id="hint">Arrastra para mirar alrededor · toca Siguiente para avanzar</div>
+  <div id="bubbles"></div>
+  <div id="progress"></div>
+  <div id="tap">↔ gira la cámara</div>
+  <div id="controls"><button id="prev">← Anterior</button><button id="next">Siguiente →</button></div>
+</div>
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/controls/OrbitControls.js';
+
+const app=document.getElementById('app');
+const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;app.appendChild(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xbfe7ff);scene.fog=new THREE.Fog(0xbfe7ff,28,70);
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,120);camera.position.set(8,5,11);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.enablePan=false;controls.minDistance=5;controls.maxDistance=15;controls.maxPolarAngle=Math.PI*.49;
+scene.add(new THREE.HemisphereLight(0xffffff,0xd4a96b,2.7));const sun=new THREE.DirectionalLight(0xffffff,3.2);sun.position.set(-8,15,8);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);scene.add(sun);
+
+const mat=(c)=>new THREE.MeshStandardMaterial({color:c,roughness:.72,metalness:0});
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),mat(0xe9cd89));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+for(let i=0;i<34;i++){const r=.4+Math.random()*1.2;const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(r,0),mat(i%2?0xc89e62:0xb88955));rock.scale.y=.55;rock.position.set((Math.random()-.5)*80,r*.2,(Math.random()-.5)*80);rock.rotation.y=Math.random()*6;rock.castShadow=rock.receiveShadow=true;scene.add(rock)}
+
+function group(){return new THREE.Group()}
+function mesh(g,m){const x=new THREE.Mesh(g,m);x.castShadow=x.receiveShadow=true;return x}
+function makePerson(colors={robe:0x68a7ff,hair:0x4b2f22,skin:0xf0bd8f},elder=false){
+ const g=group();const body=mesh(new THREE.CapsuleGeometry(.55,1.35,6,12),mat(colors.robe));body.position.y=1.45;g.add(body);
+ const head=mesh(new THREE.SphereGeometry(.48,24,18),mat(colors.skin));head.position.y=2.65;g.add(head);
+ const hair=mesh(new THREE.SphereGeometry(.5,18,12,0,Math.PI*2,0,Math.PI*.56),mat(elder?0xffffff:colors.hair));hair.position.y=2.77;hair.rotation.x=Math.PI;g.add(hair);
+ if(elder){const beard=mesh(new THREE.ConeGeometry(.42,.9,18),mat(0xffffff));beard.position.set(0,2.1,.18);beard.rotation.x=Math.PI;g.add(beard)}
+ const eyeMat=mat(0x111111);for(const s of [-1,1]){const e=mesh(new THREE.SphereGeometry(.045,10,8),eyeMat);e.position.set(.17*s,2.69,.43);g.add(e)}
+ const arms=[];for(const s of [-1,1]){const a=mesh(new THREE.CapsuleGeometry(.12,.8,4,8),mat(colors.skin));a.position.set(.68*s,1.55,0);a.rotation.z=s*.25;g.add(a);arms.push(a)}
+ const legs=[];for(const s of [-1,1]){const l=mesh(new THREE.CapsuleGeometry(.14,.7,4,8),mat(0x6b4d38));l.position.set(.25*s,.37,0);g.add(l);legs.push(l)}
+ const anchor=new THREE.Object3D();anchor.position.set(0,3.45,0);g.add(anchor);g.userData={body,head,arms,legs,anchor};return g;
+}
+function makeGoat(){
+ const g=group();const white=mat(0xf8f8ef),dark=mat(0x3b3029),pink=mat(0xffa5b8);const body=mesh(new THREE.SphereGeometry(.72,22,16),white);body.scale.set(1.25,.8,.75);body.position.y=1.15;g.add(body);const head=mesh(new THREE.SphereGeometry(.42,20,16),white);head.position.set(.82,1.45,.05);g.add(head);
+ for(const z of [-1,1]){const horn=mesh(new THREE.ConeGeometry(.09,.45,10),mat(0xc9a46f));horn.position.set(.76,1.9,.22*z);horn.rotation.z=-.3;g.add(horn)}
+ const ear=mesh(new THREE.SphereGeometry(.18,12,8),pink);ear.scale.set(1.7,.45,.7);ear.position.set(1.04,1.58,.32);ear.rotation.z=-.45;g.add(ear);const ear2=ear.clone();ear2.position.z=-.32;g.add(ear2);
+ for(const z of [-.34,.34])for(const x of [-.35,.35]){const leg=mesh(new THREE.CapsuleGeometry(.08,.58,4,8),dark);leg.position.set(x,.48,z);g.add(leg)}
+ const eye=mesh(new THREE.SphereGeometry(.05,10,8),dark);eye.position.set(1.12,1.51,.31);g.add(eye);const nose=mesh(new THREE.SphereGeometry(.06,10,8),dark);nose.position.set(1.21,1.34,.02);g.add(nose);
+ const anchor=new THREE.Object3D();anchor.position.set(.8,2.35,0);g.add(anchor);g.userData={body,head,anchor};return g;
+}
+function makeTablet(){const g=group();const t=mesh(new THREE.BoxGeometry(1.4,1.7,.18),mat(0xb9b5aa));t.position.y=.85;g.add(t);for(let i=0;i<5;i++){const line=mesh(new THREE.BoxGeometry(.78,.055,.03),mat(0x5e5e5e));line.position.set(0,1.25-i*.22,.105);g.add(line)}return g}
+function makeCarrot(){const g=group();const c=mesh(new THREE.ConeGeometry(.6,2.2,18),mat(0xff8d1a));c.rotation.z=Math.PI;g.add(c);for(let i=0;i<4;i++){const leaf=mesh(new THREE.CapsuleGeometry(.08,.8,4,8),mat(0x55a860));leaf.position.set((i-1.5)*.15,1.1,0);leaf.rotation.z=(i-1.5)*.25;g.add(leaf)}return g}
+function makeTent(color=0xe97a5e){const g=group();const t=mesh(new THREE.ConeGeometry(1.8,2.5,4),mat(color));t.rotation.y=Math.PI/4;t.position.y=1.25;g.add(t);return g}
+function makeTree(){const g=group();const trunk=mesh(new THREE.CylinderGeometry(.17,.22,1.8,10),mat(0x8d6239));trunk.position.y=.9;g.add(trunk);const crown=mesh(new THREE.DodecahedronGeometry(1.05,1),mat(0x5d9e54));crown.position.y=2.15;g.add(crown);return g}
+
+const world=group();scene.add(world);const noam=makePerson({robe:0xffb64e,hair:0x503223,skin:0xefbc8b});const kipi=makeGoat();const moshe=makePerson({robe:0x76aef0,hair:0xffffff,skin:0xeac29b},true);world.add(noam,kipi,moshe);
+const carrot=makeCarrot();const tablet=makeTablet();const scroll=mesh(new THREE.CylinderGeometry(.14,.14,1.5,16),mat(0xfff0c2));scroll.rotation.z=Math.PI/2;world.add(carrot,tablet,scroll);
+const tents=[];for(let i=0;i<8;i++){const t=makeTent(i%2?0xe97a5e:0x6aaed6);t.position.set(-8+(i%4)*4,0,-8-Math.floor(i/4)*4);world.add(t);tents.push(t)}
+const trees=[];for(let i=0;i<5;i++){const t=makeTree();t.position.set(-10+i*5,0,9+Math.sin(i)*2);world.add(t);trees.push(t)}
+
+const bubblesRoot=document.getElementById('bubbles');const sceneTitle=document.getElementById('sceneTitle'),counter=document.getElementById('counter');const prev=document.getElementById('prev'),next=document.getElementById('next');const progress=document.getElementById('progress');
+const bubbleEls={};function bubble(name,cls){const d=document.createElement('div');d.className='bubble '+cls;d.style.opacity=0;bubblesRoot.appendChild(d);bubbleEls[name]=d;return d}bubble('noam','');bubble('kipi','kipi');bubble('moshe','moshe');bubble('narrator','narrator');
+
+const S=[
+ {title:'El discurso',cam:[8,5.2,11],target:[0,1.2,0],pos:{moshe:[-3,0,0],noam:[0,0,1],kipi:[2,0,1],carrot:[20,0,20],tablet:[-1.8,0,-.8],scroll:[1.2,2.9,.3]},text:{moshe:'“Shemá Israel…” Escuchar no es solo oír. Es prestar atención de verdad.',kipi:'¡Perfecto! Mis orejas ya hacen el 90% del trabajo.',narrator:'Moshé habla al pueblo. Entonces una ráfaga de viento arranca un pergamino de sus manos…'},act:'wind'},
+ {title:'¡El pergamino!',cam:[10,4.5,8],target:[2,1,0],pos:{moshe:[-5,0,-2],noam:[0,0,0],kipi:[2.2,0,.2],carrot:[20,0,20],tablet:[-5,0,-3],scroll:[5,2.4,-1]},text:{noam:'¡Kipi, el pergamino!',kipi:'¡YO LO ATRAPO!',narrator:'El pergamino sale volando hacia las colinas. Kipi corre primero. Noam corre detrás.'},act:'run'},
+ {title:'La distracción brillante',cam:[9,4.4,7],target:[2,1,0],pos:{moshe:[-12,0,-8],noam:[0,0,0],kipi:[2,0,.2],carrot:[5,0,-.5],tablet:[20,0,20],scroll:[8,1.6,-2]},text:{kipi:'¡ALTO! ¡Una zanahoria gigante!',noam:'Kipi, es una estatua. Y estamos en medio de una misión.',kipi:'…¿puedo admirarla sin adorarla?',narrator:'Kipi se desvía hacia una enorme zanahoria de piedra. Noam tiene que arrastrarlo de vuelta al camino.'},act:'carrot'},
+ {title:'El eco del cañón',cam:[8,5,10],target:[0,1,-2],pos:{moshe:[-15,0,-10],noam:[-1,0,-2],kipi:[1.2,0,-2],carrot:[14,0,10],tablet:[20,0,20],scroll:[0,2.2,-8]},text:{noam:'¿Dónde cayó?',kipi:'¡SH-MÁÁÁÁ!',noam:'Eso es un eco, Kipi.',kipi:'Sí… pero el eco me hizo escuchar de verdad.'},act:'echo'},
+ {title:'Recordar para orientarse',cam:[7.5,4.6,8],target:[0,1,-1],pos:{moshe:[-16,0,-12],noam:[-1.5,0,-1],kipi:[1.3,0,-1],carrot:[15,0,10],tablet:[-3.6,0,-2.2],scroll:[0,1.2,-6]},text:{noam:'Moshé dijo que no olvidáramos lo que vimos y aprendimos.',kipi:'Entonces… si recordamos por dónde soplaba el viento…',noam:'¡Sabemos hacia dónde buscar!',narrator:'Por primera vez Kipi no repite una frase: usa la idea para resolver el problema.'},act:'think'},
+ {title:'La decisión',cam:[9,4.7,9],target:[0,1,-1],pos:{moshe:[-14,0,-12],noam:[-2,0,-1],kipi:[0,0,-1],carrot:[5.5,0,-2],tablet:[-4,0,-2],scroll:[3.2,.7,-3]},text:{kipi:'¡Ahí está! Pero también está… la zanahoria.',noam:'Elige.',kipi:'Pergamino primero. Zanahoria después.',narrator:'Kipi pasa de largo. Corre hacia el pergamino y lo rescata antes de que caiga por una grieta.'},act:'choice'},
+ {title:'De regreso al campamento',cam:[8,4.8,10],target:[0,1,1],pos:{moshe:[-3,0,0],noam:[0,0,1],kipi:[2,0,1],carrot:[18,0,18],tablet:[-1.8,0,-1],scroll:[1.3,1.1,1]},text:{moshe:'¿Y qué aprendiste, Kipi?',kipi:'Que “Shemá” no significa repetir palabras. Significa escucharlas… y actuar con ellas.',noam:'¡ESO!',narrator:'Noam casi se cae de la emoción.'},act:'return'},
+ {title:'La mejor clase',cam:[8,5.2,11],target:[0,1,0],pos:{moshe:[-3.2,0,0],noam:[-.2,0,1],kipi:[2,0,1],carrot:[6,0,5],tablet:[-1.8,0,-1],scroll:[1.2,1.1,1]},text:{kipi:'Hashem es Uno. Lo amamos, recordamos lo aprendido y lo enseñamos.',noam:'¿Y la zanahoria?',kipi:'La compartimos en el desayuno.',narrator:'FIN. Kipi entendió la lección… y, milagrosamente, no se comió el pergamino.'},act:'final'}
+];
+
+for(let i=0;i<S.length;i++){const d=document.createElement('div');d.className='dot';d.onclick=()=>go(i);progress.appendChild(d)}
+let idx=0,clock=new THREE.Clock(),transition=1,fromCam=new THREE.Vector3(),toCam=new THREE.Vector3(),fromTarget=new THREE.Vector3(),toTarget=new THREE.Vector3();
+const objs={moshe,noam,kipi,carrot,tablet,scroll};
+function poseReset(){noam.rotation.set(0,0,0);kipi.rotation.set(0,0,0);moshe.rotation.set(0,0,0);noam.userData.arms.forEach((a,i)=>a.rotation.z=(i?1:-1)*.25);moshe.userData.arms.forEach((a,i)=>a.rotation.z=(i?1:-1)*.25);kipi.userData.body.rotation.set(0,0,0);kipi.userData.head.rotation.set(0,0,0)}
+function go(n){idx=Math.max(0,Math.min(S.length-1,n));const s=S[idx];fromCam.copy(camera.position);toCam.set(...s.cam);fromTarget.copy(controls.target);toTarget.set(...s.target);transition=0;poseReset();Object.entries(s.pos).forEach(([k,p])=>objs[k].position.set(...p));
+ if(s.act==='run'){noam.rotation.y=-.5;kipi.rotation.y=-.5;noam.userData.arms[0].rotation.z=-1.1;noam.userData.arms[1].rotation.z=1.0}
+ if(s.act==='carrot'){kipi.rotation.y=-1.4;noam.rotation.y=-1.1;noam.userData.arms[0].rotation.z=-1.2}
+ if(s.act==='echo'){kipi.rotation.y=Math.PI;kipi.userData.head.rotation.y=.5}
+ if(s.act==='think'){noam.userData.arms[1].rotation.z=1.35;kipi.userData.head.rotation.z=.25}
+ if(s.act==='choice'){kipi.rotation.y=-.8;noam.userData.arms[0].rotation.z=-1.1}
+ if(s.act==='return'){kipi.rotation.y=-.2;moshe.userData.arms[0].rotation.z=-.95;noam.rotation.z=-.08}
+ if(s.act==='final'){moshe.userData.arms[0].rotation.z=-.8;moshe.userData.arms[1].rotation.z=.8;kipi.userData.head.rotation.z=.25}
+ sceneTitle.textContent=s.title;counter.textContent=`${idx+1} / ${S.length}`;prev.disabled=idx===0;next.disabled=idx===S.length-1;[...progress.children].forEach((d,i)=>d.classList.toggle('active',i===idx));Object.values(bubbleEls).forEach(e=>{e.style.opacity=0;e.textContent=''});for(const [k,t] of Object.entries(s.text)){bubbleEls[k].textContent=t;bubbleEls[k].style.opacity=1}
+}
+prev.onclick=()=>go(idx-1);next.onclick=()=>go(idx+1);
+function projectBubble(el,obj,offsetY=0){const p=new THREE.Vector3();obj.userData.anchor.getWorldPosition(p);p.project(camera);const x=(p.x*.5+.5)*innerWidth;const y=(-p.y*.5+.5)*innerHeight+offsetY;el.style.left=x+'px';el.style.top=y+'px'}
+function animate(){requestAnimationFrame(animate);const dt=clock.getDelta(),t=clock.elapsedTime;if(transition<1){transition=Math.min(1,transition+dt*1.7);const e=1-Math.pow(1-transition,3);camera.position.lerpVectors(fromCam,toCam,e);controls.target.lerpVectors(fromTarget,toTarget,e)}
+ const s=S[idx];if(s.act==='wind'){scroll.rotation.y+=dt*5;scroll.position.y=2.9+Math.sin(t*5)*.18;kipi.userData.head.rotation.z=Math.sin(t*4)*.08}
+ if(s.act==='run'){noam.position.x=.1+Math.sin(t*4)*.12;kipi.position.x=2.2+Math.sin(t*5)*.16;noam.rotation.z=Math.sin(t*5)*.035;kipi.rotation.z=Math.sin(t*6)*.05;scroll.position.y=2.4+Math.sin(t*4)*.3}
+ if(s.act==='carrot'){kipi.position.x=2+Math.sin(t*3)*.08;kipi.userData.head.rotation.z=.18+Math.sin(t*4)*.04;carrot.rotation.y+=dt*.5}
+ if(s.act==='echo'){kipi.scale.y=1+Math.sin(t*7)*.025}
+ if(s.act==='think'){kipi.userData.head.rotation.y=Math.sin(t*2)*.2}
+ if(s.act==='choice'){kipi.position.x=.05+Math.sin(t*5)*.13;kipi.rotation.z=Math.sin(t*6)*.04}
+ if(s.act==='return'){noam.rotation.z=-.08+Math.sin(t*2.5)*.025}
+ if(s.act==='final'){carrot.rotation.y+=dt;kipi.userData.head.rotation.z=.25+Math.sin(t*3)*.04}
+ controls.update();projectBubble(bubbleEls.noam,noam);projectBubble(bubbleEls.kipi,kipi,-8);projectBubble(bubbleEls.moshe,moshe,-4);renderer.render(scene,camera)}
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});go(0);animate();document.getElementById('loading').remove();
+</script>
+</body>
+</html>
